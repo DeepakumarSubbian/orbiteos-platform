@@ -126,6 +126,16 @@
         "alias": "Modbus TCP",
         "port": 502
       }
+    },
+
+    "backendApi0": {
+      "factoryId": "Controller.Api.Backend",
+      "properties": {
+        "alias": "Backend Connection",
+        "uri": "ws://openems-backend:8081",
+        "apikey": "d92IC4eEHyrqmiMab6GX",
+        "persistencePriority": "HIGH"
+      }
     }
   }
 }

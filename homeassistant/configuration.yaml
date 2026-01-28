@@ -96,6 +96,42 @@ template:
           {% set power = states('sensor.c85ec50313dc_sum_gridactivepower_2') | float(0) %}
           {{ max(0, -power) }}
 
+      # Energy sensors with state_class: total_increasing for Energy Dashboard
+      - name: "Solar Energy Total"
+        unique_id: solar_energy_total
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: total_increasing
+        state: "{{ states('sensor.solar_energy_production') | float(0) }}"
+
+      - name: "Grid Import Energy Total"
+        unique_id: grid_import_energy_total
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: total_increasing
+        state: "{{ states('sensor.grid_energy_import') | float(0) }}"
+
+      - name: "Grid Export Energy Total"
+        unique_id: grid_export_energy_total
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: total_increasing
+        state: "{{ states('sensor.grid_energy_export') | float(0) }}"
+
+      - name: "Battery Charge Energy Total"
+        unique_id: battery_charge_energy_total
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: total_increasing
+        state: "{{ states('sensor.battery_charge_energy') | float(0) }}"
+
+      - name: "Battery Discharge Energy Total"
+        unique_id: battery_discharge_energy_total
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: total_increasing
+        state: "{{ states('sensor.battery_discharge_energy') | float(0) }}"
+
 # Riemann sum integral sensors to convert power to energy
 sensor:
   - platform: integration

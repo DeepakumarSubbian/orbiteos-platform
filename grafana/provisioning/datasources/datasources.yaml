@@ -9,7 +9,7 @@ datasources:
     database: telemetry
     user: postgres
     secureJsonData:
-      password: ${TIMESCALE_PASSWORD:-timescale}
+      password: timescale_secure_password
     jsonData:
       sslmode: disable
       maxOpenConns: 10
@@ -27,7 +27,7 @@ datasources:
     database: orbiteos
     user: postgres
     secureJsonData:
-      password: ${POSTGRES_PASSWORD:-postgres}
+      password: change_this_secure_password
     jsonData:
       sslmode: disable
       maxOpenConns: 5
