@@ -36,6 +36,8 @@ OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 ORBITEOS_API_URL = os.getenv("ORBITEOS_API_URL", "http://orbiteos-api:8000")
 OPENEMS_API_URL = os.getenv("OPENEMS_API_URL", "http://openems-edge:8084")
+OPENEMS_USER = os.getenv("OPENEMS_USER", "admin")
+OPENEMS_PASSWORD = os.getenv("OPENEMS_PASSWORD", "admin")
 
 # System prompt for energy assistant
 SYSTEM_PROMPT = """You are OrbitEOS, an intelligent energy management assistant. You help users understand and optimize their home energy system.
@@ -81,14 +83,35 @@ class EnergyAgent:
     async def get_openems_data(self) -> Dict[str, Any]:
         """Fetch current data from OpenEMS Edge."""
         try:
-            # Get channel data from OpenEMS REST API
-            response = await self.http_client.get(
-                f"{OPENEMS_API_URL}/rest/channel/_sum/.*",
-                timeout=5.0
-            )
-            if response.status_code == 200:
-                data = response.json()
+            # Get channel data from OpenEMS REST API with authentication
+            auth = httpx.BasicAuth(OPENEMS_USER, OPENEMS_PASSWORD)
+
+            # Fetch individual channels since wildcard may not work
+            channels = {
+                'EssSoc': '_sum/EssSoc',
+                'EssActivePower': '_sum/EssActivePower',
+                'ProductionActivePower': '_sum/ProductionActivePower',
+                'ConsumptionActivePower': '_sum/ConsumptionActivePower',
+                'GridActivePower': '_sum/GridActivePower'
+            }
+
+            data = {}
+            for key, channel in channels.items():
+                try:
+                    response = await self.http_client.get(
+                        f"{OPENEMS_API_URL}/rest/channel/{channel}",
+                        auth=auth,
+                        timeout=5.0
+                    )
+                    if response.status_code == 200:
+                        result = response.json()
+                        data[key] = {'value': result.get('value')}
+                except Exception:
+                    data[key] = {'value': None}
+
+            if data.get('EssSoc', {}).get('value') is not None:
                 return self._parse_openems_data(data)
+
         except Exception as e:
             logger.warning(f"Failed to fetch OpenEMS data: {e}")
 
@@ -98,7 +121,8 @@ class EnergyAgent:
     def _parse_openems_data(self, raw_data: Dict) -> Dict[str, Any]:
         """Parse OpenEMS channel data into friendly format."""
         def get_value(key: str, default=0):
-            return raw_data.get(key, {}).get('value', default)
+            val = raw_data.get(key, {}).get('value')
+            return val if val is not None else default
 
         solar_power = get_value('ProductionActivePower', 0)
         grid_power = get_value('GridActivePower', 0)
@@ -110,24 +134,25 @@ class EnergyAgent:
             'timestamp': datetime.now().isoformat(),
             'solar': {
                 'power_w': solar_power,
-                'power_kw': round(solar_power / 1000, 2),
-                'status': 'producing' if solar_power > 100 else 'idle'
+                'power_kw': round(solar_power / 1000, 2) if solar_power else 0,
+                'status': 'producing' if solar_power and solar_power > 100 else 'idle'
             },
             'battery': {
                 'soc_percent': battery_soc,
                 'power_w': battery_power,
-                'power_kw': round(battery_power / 1000, 2),
-                'status': 'charging' if battery_power < -50 else ('discharging' if battery_power > 50 else 'standby')
+                'power_kw': round(battery_power / 1000, 2) if battery_power else 0,
+                'status': 'charging' if battery_power and battery_power < -50 else ('discharging' if battery_power and battery_power > 50 else 'standby')
             },
             'grid': {
                 'power_w': grid_power,
-                'power_kw': round(grid_power / 1000, 2),
-                'status': 'importing' if grid_power > 50 else ('exporting' if grid_power < -50 else 'balanced')
+                'power_kw': round(grid_power / 1000, 2) if grid_power else 0,
+                'status': 'importing' if grid_power and grid_power > 50 else ('exporting' if grid_power and grid_power < -50 else 'balanced')
             },
             'home': {
                 'consumption_w': consumption,
-                'consumption_kw': round(consumption / 1000, 2)
-            }
+                'consumption_kw': round(consumption / 1000, 2) if consumption else 0
+            },
+            'source': 'openems'
         }
 
     def _get_simulated_data(self) -> Dict[str, Any]:

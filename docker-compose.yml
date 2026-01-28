@@ -36,6 +36,23 @@ services:
     networks:
       - orbiteos-net
 
+  openems-ui:
+    image: openems/ui-edge:latest
+    container_name: orbiteos-openems-ui
+    ports:
+      - "8082:80"
+    environment:
+      - WEBSOCKET_HOST=localhost
+      - WEBSOCKET_PORT=8085
+      - WEBSOCKET_PROTOCOL=ws
+    volumes:
+      - ./openems-ui/80-openems.conf:/etc/nginx/site-confs/80-openems.conf:ro
+    depends_on:
+      - openems-edge
+    restart: unless-stopped
+    networks:
+      - orbiteos-net
+
   # ============================================
   # LLM LAYER
   # ============================================
