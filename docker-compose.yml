@@ -1,0 +1,241 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # OPENEMS - Energy Management with Native Simulators
+  # ============================================
+  openems-edge:
+    image: openems/edge:latest
+    container_name: orbiteos-openems-edge
+    ports:
+      - "8080:8080"     # Web UI
+      - "8084:8084"     # REST API (read-only)
+      - "8085:8085"     # WebSocket API
+      - "502:502"       # Modbus TCP
+    volumes:
+      - ./openems-edge/config.json:/etc/openems/config.json:ro
+      - openems-edge-data:/var/lib/openems
+    environment:
+      - JAVA_OPTS=-Xmx512m
+    restart: unless-stopped
+    networks:
+      - orbiteos-net
+
+  openems-backend:
+    image: openems/backend:latest
+    container_name: orbiteos-openems-backend
+    ports:
+      - "8081:8081"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=openems
+      - POSTGRES_PASSWORD=${OPENEMS_DB_PASSWORD:-openems}
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - orbiteos-net
+
+  # ============================================
+  # LLM LAYER
+  # ============================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: orbiteos-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+    restart: unless-stopped
+    networks:
+      - orbiteos-net
+
+  orbiteos-llm:
+    build: ./orbiteos-llm
+    container_name: orbiteos-llm
+    ports:
+      - "9000:9000"
+    environment:
+      - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=${LLM_MODEL:-llama3.1:8b}
+      - ORBITEOS_API_URL=http://orbiteos-api:8000
+      - OPENEMS_API_URL=http://openems-edge:8084
+    depends_on:
+      - ollama
+      - orbiteos-api
+      - openems-edge
+    restart: unless-stopped
+    networks:
+      - orbiteos-net
+
+  # ============================================
+  # HOME ASSISTANT
+  # ============================================
+  homeassistant:
+    image: homeassistant/home-assistant:latest
+    container_name: orbiteos-homeassistant
+    ports:
+      - "8123:8123"
+    volumes:
+      - ./homeassistant:/config
+    environment:
+      - TZ=${TIMEZONE:-Europe/Amsterdam}
+    depends_on:
+      - mqtt
+      - openems-edge
+    privileged: true
+    restart: unless-stopped
+    networks:
+      - orbiteos-net
+
+  # ============================================
+  # ORBITEOS API
+  # ============================================
+  orbiteos-api:
+    build: ./orbiteos-api
+    container_name: orbiteos-api
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - TIMESCALEDB_HOST=timescaledb
+      - TIMESCALEDB_PASSWORD=${TIMESCALE_PASSWORD:-timescale}
+      - REDIS_URL=redis://redis:6379
+      - OPENEMS_API_URL=http://openems-edge:8084
+      - LICENSE_KEY=${LICENSE_KEY:-DEMO-MODE}
+    depends_on:
+      - postgres
+      - redis
+      - timescaledb
+    restart: unless-stopped
+    networks:
+      - orbiteos-net
+
+  # ============================================
+  # WEATHER & PRICING (Optional Simulators)
+  # ============================================
+  weather-simulator:
+    build: ./orbiteos-weather
+    container_name: orbiteos-weather
+    environment:
+      - LATITUDE=${LATITUDE:-52.3676}
+      - LONGITUDE=${LONGITUDE:-4.9041}
+      - MQTT_BROKER=mqtt://mqtt:1883
+    depends_on:
+      - mqtt
+    restart: unless-stopped
+    networks:
+      - orbiteos-net
+    profiles:
+      - simulators
+
+  price-fetcher:
+    build: ./orbiteos-pricing
+    container_name: orbiteos-pricing
+    environment:
+      - PRICE_SOURCE=${PRICE_SOURCE:-simulation}
+      - MQTT_BROKER=mqtt://mqtt:1883
+    depends_on:
+      - mqtt
+    restart: unless-stopped
+    networks:
+      - orbiteos-net
+    profiles:
+      - simulators
+
+  # ============================================
+  # DATABASES
+  # ============================================
+  postgres:
+    image: postgres:15
+    container_name: orbiteos-postgres
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_MULTIPLE_DATABASES=orbiteos,openems
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    restart: unless-stopped
+    networks:
+      - orbiteos-net
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: orbiteos-timescaledb
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_DB=telemetry
+      - POSTGRES_PASSWORD=${TIMESCALE_PASSWORD:-timescale}
+    volumes:
+      - timescale-data:/var/lib/postgresql/data
+      - ./init-scripts-timescale:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    networks:
+      - orbiteos-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: orbiteos-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - orbiteos-net
+
+  # ============================================
+  # MQTT BROKER
+  # ============================================
+  mqtt:
+    image: eclipse-mosquitto:latest
+    container_name: orbiteos-mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - mosquitto-data:/mosquitto/data
+    restart: unless-stopped
+    networks:
+      - orbiteos-net
+
+  # ============================================
+  # GRAFANA DASHBOARDS
+  # ============================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: orbiteos-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - timescaledb
+      - openems-edge
+    restart: unless-stopped
+    networks:
+      - orbiteos-net
+
+networks:
+  orbiteos-net:
+    driver: bridge
+
+volumes:
+  ollama-models:
+  postgres-data:
+  timescale-data:
+  redis-data:
+  openems-edge-data:
+  mosquitto-data:
+  grafana-data:

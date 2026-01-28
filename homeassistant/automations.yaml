@@ -1,0 +1,174 @@
+# OrbitEOS Home Assistant Automations
+
+# Low Battery Alert
+- id: 'low_battery_alert'
+  alias: Low Battery SOC Alert
+  description: 'Notify when battery SOC drops below 20%'
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.battery_soc
+      below: 20
+  condition:
+    - condition: state
+      entity_id: sensor.battery_status
+      state: 'Discharging'
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "Low Battery Warning"
+        message: "Battery SOC is {{ states('sensor.battery_soc') }}%. Consider reducing consumption or enabling grid charging."
+        notification_id: low_battery
+  mode: single
+
+# High Solar Production Notification
+- id: 'high_solar_production'
+  alias: High Solar Production Alert
+  description: 'Notify when solar production exceeds 5kW'
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.solar_production
+      above: 5000
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "High Solar Production"
+        message: "Solar is producing {{ states('sensor.solar_power_kw') }} kW! Great time to run appliances."
+        notification_id: high_solar
+  mode: single
+
+# Grid Export Notification
+- id: 'grid_export_started'
+  alias: Grid Export Started
+  description: 'Notify when exporting to grid'
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.grid_power
+      below: -500
+      for:
+        minutes: 1
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "Exporting to Grid"
+        message: "Now exporting {{ (states('sensor.grid_power') | float | abs / 1000) | round(2) }} kW to the grid."
+        notification_id: grid_export
+  mode: single
+
+# Battery Full Notification
+- id: 'battery_full'
+  alias: Battery Full Notification
+  description: 'Notify when battery is fully charged'
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.battery_soc
+      above: 95
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "Battery Full"
+        message: "Battery is now at {{ states('sensor.battery_soc') }}%. Excess solar will be exported to grid."
+        notification_id: battery_full
+  mode: single
+
+# EV Charging Complete
+- id: 'ev_charging_complete'
+  alias: EV Charging Complete
+  description: 'Notify when EV charging is finished'
+  trigger:
+    - platform: state
+      entity_id: sensor.ev_charger_status
+      to: 'finished'
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "EV Charging Complete"
+        message: "Your EV is fully charged and ready to go!"
+        notification_id: ev_complete
+  mode: single
+
+# Morning Solar Start
+- id: 'morning_solar_start'
+  alias: Morning Solar Production Start
+  description: 'Log when solar starts producing in the morning'
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.solar_production
+      above: 100
+  condition:
+    - condition: sun
+      after: sunrise
+      before: "10:00:00"
+  action:
+    - service: logbook.log
+      data:
+        name: Solar
+        message: "Solar production started for the day"
+        entity_id: sensor.solar_production
+  mode: single
+
+# Peak Rate Warning
+- id: 'peak_rate_warning'
+  alias: Peak Rate Warning
+  description: 'Warn during peak electricity rate hours'
+  trigger:
+    - platform: time
+      at: "17:00:00"
+  condition:
+    - condition: time
+      weekday:
+        - mon
+        - tue
+        - wed
+        - thu
+        - fri
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "Peak Rate Period"
+        message: "Peak electricity rates now in effect (17:00-21:00). Consider using stored solar energy."
+        notification_id: peak_rate
+  mode: single
+
+# Smart EV Charging - Start when solar excess
+- id: 'smart_ev_charging_start'
+  alias: Smart EV Charging Start
+  description: 'Start EV charging when excess solar available'
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.grid_power
+      below: -3000
+      for:
+        minutes: 5
+  condition:
+    - condition: state
+      entity_id: input_boolean.ev_smart_charging
+      state: 'on'
+    - condition: state
+      entity_id: sensor.ev_charger_status
+      state: 'available'
+  action:
+    - service: logbook.log
+      data:
+        name: EV Charger
+        message: "Starting EV charging due to excess solar ({{ (states('sensor.grid_power') | float | abs / 1000) | round(2) }} kW available)"
+  mode: single
+
+# Daily Energy Summary
+- id: 'daily_energy_summary'
+  alias: Daily Energy Summary
+  description: 'Generate daily energy summary at 21:00'
+  trigger:
+    - platform: time
+      at: "21:00:00"
+  action:
+    - service: persistent_notification.create
+      data:
+        title: "Daily Energy Summary"
+        message: >
+          Today's Energy Summary:
+          - Solar Production: {{ states('sensor.daily_solar_energy') }} kWh
+          - Grid Import: {{ states('sensor.daily_grid_import') }} kWh
+          - Grid Export: {{ states('sensor.daily_grid_export') }} kWh
+          - Self Consumption: {{ states('sensor.self_consumption_rate') }}%
+        notification_id: daily_summary
+  mode: single

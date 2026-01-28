@@ -1,0 +1,131 @@
+{
+  "components": {
+    "_componentManager": {
+      "factoryId": "Core.ComponentManager"
+    },
+    "_cycle": {
+      "factoryId": "Core.Cycle",
+      "properties": {
+        "cycleTime": 1000
+      }
+    },
+    "_meta": {
+      "factoryId": "Core.Meta",
+      "properties": {
+        "id": "edge0",
+        "comment": "OrbitEOS Edge Controller"
+      }
+    },
+    "_sum": {
+      "factoryId": "Core.Sum"
+    },
+    "_power": {
+      "factoryId": "Ess.Power"
+    },
+
+    "meter0": {
+      "factoryId": "Simulator.GridMeter.Reacting",
+      "properties": {
+        "alias": "Grid Meter"
+      }
+    },
+
+    "ess0": {
+      "factoryId": "Simulator.EssSymmetric.Reacting",
+      "properties": {
+        "alias": "Battery Storage",
+        "maxApparentPower": 5000,
+        "capacity": 13500,
+        "initialSoc": 50
+      }
+    },
+
+    "pvInverter0": {
+      "factoryId": "Simulator.PvInverter",
+      "properties": {
+        "alias": "PV System",
+        "datasource.id": "datasource0"
+      }
+    },
+
+    "datasource0": {
+      "factoryId": "Simulator.Datasource.SingleValue.Direct",
+      "properties": {
+        "alias": "PV Datasource",
+        "value": 3000
+      }
+    },
+
+    "evcs0": {
+      "factoryId": "Simulator.Evcs",
+      "properties": {
+        "alias": "EV Charger",
+        "minHwPower": 4600,
+        "maxHwPower": 11000
+      }
+    },
+
+    "ctrlBalancing0": {
+      "factoryId": "Controller.Symmetric.Balancing",
+      "properties": {
+        "enabled": true,
+        "ess.id": "ess0",
+        "meter.id": "meter0",
+        "targetGridSetpoint": 0
+      }
+    },
+
+    "ctrlEvcs0": {
+      "factoryId": "Controller.Evcs",
+      "properties": {
+        "enabled": true,
+        "evcs.id": "evcs0",
+        "enabledCharging": true,
+        "chargeMode": "EXCESS_POWER",
+        "forceChargeMinPower": 4600,
+        "defaultChargeMinPower": 4600,
+        "priority": "CAR",
+        "ess.id": "ess0"
+      }
+    },
+
+    "predictor0": {
+      "factoryId": "Predictor.PersistenceModel",
+      "properties": {
+        "channelAddresses": [
+          "_sum/ProductionActivePower",
+          "_sum/ConsumptionActivePower"
+        ]
+      }
+    },
+
+    "scheduler0": {
+      "factoryId": "Scheduler.AllAlphabetically"
+    },
+
+    "apiWebsocket0": {
+      "factoryId": "Controller.Api.Websocket",
+      "properties": {
+        "alias": "UI Websocket",
+        "port": 8085,
+        "apiTimeout": 60
+      }
+    },
+
+    "apiRest0": {
+      "factoryId": "Controller.Api.Rest.ReadOnly",
+      "properties": {
+        "alias": "REST API",
+        "port": 8084
+      }
+    },
+
+    "apiModbusTcp0": {
+      "factoryId": "Controller.Api.ModbusTcp.ReadOnly",
+      "properties": {
+        "alias": "Modbus TCP",
+        "port": 502
+      }
+    }
+  }
+}

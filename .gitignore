@@ -1,0 +1,93 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.log
+.pytest_cache/
+.coverage
+htmlcov/
+venv/
+ENV/
+env/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dist/
+build/
+.next/
+.nuxt/
+.cache/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# Docker
+docker-compose.override.yml
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+postgres-data/
+timescale-data/
+redis-data/
+
+# Application data
+homeassistant/
+!homeassistant/configuration.yaml
+!homeassistant/automations.yaml
+!homeassistant/custom_components/
+openems-edge-data/
+openems-backend/logs/
+grafana-data/
+ollama-models/
+mosquitto/data/
+mosquitto/log/
+
+# Logs
+logs/
+*.log
+
+# Secrets
+secrets.yaml
+*.key
+*.pem
+*.crt
+
+# Temporary
+tmp/
+temp/
+*.tmp

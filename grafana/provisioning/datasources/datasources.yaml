@@ -1,0 +1,45 @@
+# Grafana Datasources Configuration
+apiVersion: 1
+
+datasources:
+  # TimescaleDB for telemetry data
+  - name: TimescaleDB
+    type: postgres
+    url: timescaledb:5432
+    database: telemetry
+    user: postgres
+    secureJsonData:
+      password: ${TIMESCALE_PASSWORD:-timescale}
+    jsonData:
+      sslmode: disable
+      maxOpenConns: 10
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+      postgresVersion: 1500
+      timescaledb: true
+    isDefault: true
+    editable: false
+
+  # PostgreSQL for system data
+  - name: PostgreSQL
+    type: postgres
+    url: postgres:5432
+    database: orbiteos
+    user: postgres
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD:-postgres}
+    jsonData:
+      sslmode: disable
+      maxOpenConns: 5
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+      postgresVersion: 1500
+    editable: false
+
+  # JSON API for OpenEMS data
+  - name: OpenEMS
+    type: grafana-simple-json-datasource
+    url: http://openems-edge:8084
+    access: proxy
+    isDefault: false
+    editable: false

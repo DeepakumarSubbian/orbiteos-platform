@@ -1,0 +1,26 @@
+# OrbitEOS Simulators - Python Dependencies
+
+# Modbus TCP Server (OpenEMS compatibility)
+pymodbus>=3.5.0
+
+# MQTT Publishing
+paho-mqtt>=1.6.1
+
+# Time and date handling
+pytz>=2023.3
+
+# Math and calculations
+numpy>=1.24.0
+
+# Async support
+asyncio-mqtt>=0.16.1
+
+# Logging
+structlog>=23.2.0
+
+# Configuration
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Environment variables
+python-dotenv>=1.0.0

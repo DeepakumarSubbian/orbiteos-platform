@@ -1,0 +1,222 @@
+# OrbitEOS Home Assistant Configuration
+# Energy Management Dashboard
+
+homeassistant:
+  name: OrbitEOS Home
+  unit_system: metric
+  currency: EUR
+  country: NL
+  time_zone: Europe/Amsterdam
+  external_url: "http://localhost:8123"
+  internal_url: "http://localhost:8123"
+
+# Enable default config
+default_config:
+
+# HTTP configuration
+http:
+  server_port: 8123
+
+# Logger
+logger:
+  default: info
+  logs:
+    homeassistant.components.mqtt: debug
+    homeassistant.components.rest: debug
+    homeassistant.components.modbus: debug
+
+# MQTT Integration (connects to Mosquitto)
+mqtt:
+  broker: mqtt
+  port: 1883
+  discovery: true
+  discovery_prefix: homeassistant
+
+# REST sensors for OpenEMS data
+rest:
+  - resource: "http://openems-edge:8084/rest/channel/_sum/.*"
+    scan_interval: 5
+    sensor:
+      - name: "Solar Production"
+        value_template: "{{ value_json['ProductionActivePower']['value'] | default(0) }}"
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+      - name: "Grid Power"
+        value_template: "{{ value_json['GridActivePower']['value'] | default(0) }}"
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+      - name: "Consumption"
+        value_template: "{{ value_json['ConsumptionActivePower']['value'] | default(0) }}"
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+      - name: "Battery SOC"
+        value_template: "{{ value_json['EssSoc']['value'] | default(0) }}"
+        unit_of_measurement: "%"
+        device_class: battery
+        state_class: measurement
+
+# Template sensors for calculated values
+template:
+  - sensor:
+      - name: "Solar Power kW"
+        unit_of_measurement: "kW"
+        device_class: power
+        state_class: measurement
+        state: "{{ (states('sensor.solar_production') | float(0) / 1000) | round(2) }}"
+
+      - name: "Battery Power kW"
+        unit_of_measurement: "kW"
+        device_class: power
+        state_class: measurement
+        state: "{{ (states('sensor.battery_power') | float(0) / 1000) | round(2) }}"
+
+      - name: "Grid Power kW"
+        unit_of_measurement: "kW"
+        device_class: power
+        state_class: measurement
+        state: "{{ (states('sensor.grid_power') | float(0) / 1000) | round(2) }}"
+
+      - name: "Home Consumption kW"
+        unit_of_measurement: "kW"
+        device_class: power
+        state_class: measurement
+        state: "{{ (states('sensor.consumption') | float(0) / 1000) | round(2) }}"
+
+      - name: "Grid Status"
+        state: >
+          {% set power = states('sensor.grid_power') | float(0) %}
+          {% if power > 50 %}
+            Importing
+          {% elif power < -50 %}
+            Exporting
+          {% else %}
+            Balanced
+          {% endif %}
+
+      - name: "Battery Status"
+        state: >
+          {% set power = states('sensor.battery_power') | float(0) %}
+          {% set soc = states('sensor.battery_soc') | float(0) %}
+          {% if power > 50 %}
+            Discharging
+          {% elif power < -50 %}
+            Charging
+          {% elif soc >= 95 %}
+            Full
+          {% elif soc <= 10 %}
+            Empty
+          {% else %}
+            Standby
+          {% endif %}
+
+      - name: "Self Consumption Rate"
+        unit_of_measurement: "%"
+        state: >
+          {% set solar = states('sensor.solar_production') | float(0) %}
+          {% set export = states('sensor.grid_power') | float(0) %}
+          {% if solar > 0 %}
+            {{ ((solar + min(export, 0)) / solar * 100) | round(1) }}
+          {% else %}
+            0
+          {% endif %}
+
+# Modbus integration for direct OpenEMS access
+modbus:
+  - name: openems
+    type: tcp
+    host: openems-edge
+    port: 502
+    sensors:
+      - name: "ESS SOC"
+        address: 0
+        slave: 1
+        input_type: holding
+        unit_of_measurement: "%"
+        device_class: battery
+
+# Utility meters for energy tracking
+utility_meter:
+  daily_solar_energy:
+    source: sensor.solar_energy
+    name: Daily Solar Energy
+    cycle: daily
+
+  daily_grid_import:
+    source: sensor.grid_import_energy
+    name: Daily Grid Import
+    cycle: daily
+
+  daily_grid_export:
+    source: sensor.grid_export_energy
+    name: Daily Grid Export
+    cycle: daily
+
+  monthly_solar_energy:
+    source: sensor.solar_energy
+    name: Monthly Solar Energy
+    cycle: monthly
+
+# Energy dashboard configuration
+energy:
+
+# Input booleans for control
+input_boolean:
+  ev_smart_charging:
+    name: EV Smart Charging
+    icon: mdi:car-electric
+
+  battery_grid_charging:
+    name: Allow Battery Grid Charging
+    icon: mdi:battery-charging
+
+  solar_priority_mode:
+    name: Solar Priority Mode
+    icon: mdi:solar-power
+
+# Input numbers for settings
+input_number:
+  battery_min_soc:
+    name: Battery Minimum SOC
+    min: 5
+    max: 50
+    step: 5
+    unit_of_measurement: "%"
+    icon: mdi:battery-low
+
+  ev_target_soc:
+    name: EV Target SOC
+    min: 50
+    max: 100
+    step: 10
+    unit_of_measurement: "%"
+    icon: mdi:car-battery
+
+  grid_export_limit:
+    name: Grid Export Limit
+    min: 0
+    max: 10000
+    step: 100
+    unit_of_measurement: "W"
+    icon: mdi:transmission-tower
+
+# Recorder for history
+recorder:
+  purge_keep_days: 30
+  include:
+    domains:
+      - sensor
+      - binary_sensor
+      - input_boolean
+      - input_number
+
+# Automation placeholder (see automations.yaml)
+automation: !include automations.yaml
+
+# Scripts placeholder
+script: !include scripts.yaml
+
+# Scenes placeholder
+scene: !include scenes.yaml
